@@ -32,7 +32,8 @@ module Lita
         return response.relpy(no_accounts) unless access["secret"]
 
         client = twitter_client(access["token"], access["secret"])
-        client.update(tweet)
+        tweet = client.update(tweet)
+        response.reply(tweet.url)
       end
 
       def untweet(response)
