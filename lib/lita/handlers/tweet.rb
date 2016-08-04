@@ -29,6 +29,8 @@ module Lita
         return unless tweet
         
         access = TwitterAccountList.new(redis).first
+        return unless access["secret"]
+
         client = twitter_client(access["token"], access["secret"])
         client.update(tweet)
       end
