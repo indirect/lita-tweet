@@ -26,10 +26,10 @@ module Lita
 
       def tweet(response)
         tweet = response.match_data[1]
-        return unless tweet
+        return response.reply("I need something to tweet!") unless tweet
         
         access = TwitterAccountList.new(redis).first
-        return unless access["secret"]
+        return response.relpy(no_accounts) unless access["secret"]
 
         client = twitter_client(access["token"], access["secret"])
         client.update(tweet)
