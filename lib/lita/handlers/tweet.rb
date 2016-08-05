@@ -7,6 +7,7 @@ module Lita
       config :consumer_key, type: String
       config :consumer_secret, type: String
       config :ssl
+      config :host
 
       route %r{^tweet\s(.+)}, :tweet, command: true, restrict_to: :tweeters,
         help: {"tweet MESSAGE" => "Post a tweet."}
@@ -142,8 +143,9 @@ module Lita
 
       def bot_uri(path)
         scheme = config.ssl ? "https" : "http"
-        host = "#{robot.config.http.host}:#{robot.config.http.port}"
-        URI(File.join("#{scheme}://#{host}", path))
+        host = config.host || robot.config.http.host
+        port = robot.config.http.port
+        URI(File.join("#{scheme}://#{host}:#{port}", path))
       end
 
       def consumer
