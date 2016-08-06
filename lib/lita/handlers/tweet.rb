@@ -127,8 +127,9 @@ module Lita
       
       RequestTokenList = Struct.new(:redis) do
         def add(params)
-          oauth_token = params[:oauth_token]
-          redis.hmset("request_token:#{oauth_token}", *params.to_a.flatten)
+          key = "request_token:#{params[:oauth_token]}"
+          redis.hmset(key, *params.to_a.flatten)
+          redis.expire(key, 120)
         end
 
         def find(oauth_token, consumer)
