@@ -65,12 +65,9 @@ module Lita
 
       def login_with_twitter(request, response)
         # Get an oauth_token from Twitter
-        request_token = consumer.get_request_token(
-          oauth_callback: bot_uri("/twitter/callback").to_s)
+        callback = bot_uri("/twitter/callback")
+        request_token = RequestTokenList.new(redis, config).add(callback)
 
-        # Save the request_token hash to Redis (by oauth_token)
-        RequestTokenList.new(redis).add(request_token.params)
-        
         # Redirect the user to the Twitter login URL
         response.status = 302
         response.headers["Location"] = request_token.authorize_url
@@ -81,12 +78,12 @@ module Lita
         oauth_token = request.params["oauth_token"]
 
         # Load the request_token hash from Redis (by oauth_token)
-        request_token = RequestTokenList.new(redis).find(oauth_token, consumer)
+        request_token = RequestTokenList.new(redis, config).find(oauth_token)
 
         # Use the RequestToken to `get_access_token` with the oauth_verifier
         access_token = request_token.get_access_token(
           oauth_verifier: request.params["oauth_verifier"])
-        
+
         # Save the twitter creds with username, token, and secret
         client = twitter_client(access_token.token, access_token.secret)
         username = client.user.screen_name
@@ -113,7 +110,7 @@ module Lita
         def find(username)
           redis.hgetall("twitter_accounts:#{username}")
         end
-        
+
         def first
           find(names.first)
         end
@@ -124,18 +121,32 @@ module Lita
             "token", token, "secret", secret)
         end
       end
-      
-      RequestTokenList = Struct.new(:redis) do
-        def add(params)
+
+      RequestTokenList = Struct.new(:redis, :config) do
+        def add(callback_url)
+          request_token = consumer.get_request_token(
+            oauth_callback: callback_url.to_s)
+          params = request_token.params
+
           key = "request_token:#{params[:oauth_token]}"
           redis.hmset(key, *params.to_a.flatten)
           redis.expire(key, 120)
         end
 
-        def find(oauth_token, consumer)
+        def find(oauth_token)
           params = redis.hgetall("request_token:#{oauth_token}")
           params.keys.each{|k| params[k.to_sym] = params[k] }
           OAuth::RequestToken.from_hash(consumer, params)
+        end
+
+        def consumer
+          @consumer ||= OAuth::Consumer.new(
+            config.consumer_key,
+            config.consumer_secret,
+            :site => 'https://api.twitter.com',
+            :authorize_path => '/oauth/authenticate',
+            :sign_in => true
+          )
         end
       end
 
@@ -145,16 +156,6 @@ module Lita
         bot_url = config.http_url ||
            "http://#{robot.config.http.host}:#{robot.config.http.port}"
         URI(File.join(bot_url, path))
-      end
-
-      def consumer
-        @consumer ||= OAuth::Consumer.new(
-          config.consumer_key || "PhJYwP0Il1BkLNDAJYnLgFJRT",
-          config.consumer_secret || "gguuzCj9esoVApMiQJ3pIN9hVoCmUqvN0vyz6WR3tF4SHpUsD9",
-          :site => 'https://api.twitter.com',
-          :authorize_path => '/oauth/authenticate',
-          :sign_in => true
-        )
       end
 
       Lita.register_handler(self)
