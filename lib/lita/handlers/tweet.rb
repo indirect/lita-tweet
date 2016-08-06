@@ -12,11 +12,12 @@ module Lita
         help: {"tweet MESSAGE" => "Post a tweet."}
       route %r{^untweet}, :untweet, command: true, restrict_to: :tweeters,
         help: {"untweet" => "Delete the last tweet."}
-      route %r{^twitter accounts}, :accounts, command: true, help: {
-        "twitter accounts" => "List accounts that can be tweeted from.",
-        "twitter accounts add" => "Authorize a new account for tweeting.",
-        "twitter accounts remove NAME" => "Remove the twitter account NAME"
-      }
+      route %r{^twitter accounts}, :accounts, command: true,
+        restrict_to: :tweeters, help: {
+          "twitter accounts" => "List accounts that can be tweeted from.",
+          "twitter accounts add" => "Authorize a new account for tweeting.",
+          "twitter accounts remove NAME" => "Remove the twitter account NAME"
+        }
       # route %r{^twitter channels\s(.+?)\s(.+)}, :channels, command: true, help: {
       #   "twitter channels" => "List account to channel mappings.",
       #   "twitter channels NAME CHANNEL" => "Tweet as twitter account NAME when told to tweet in channel CHANNEL."
