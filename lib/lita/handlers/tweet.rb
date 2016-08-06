@@ -29,16 +29,29 @@ module Lita
         tweet = response.match_data[1]
         return response.reply("I need something to tweet!") unless tweet
 
-        access = TwitterAccountList.new(redis).first
-        return response.relpy(no_accounts) unless access["secret"]
+        account = account_for(response)
+        return response.relpy(no_accounts) unless account["secret"]
 
-        client = twitter_client(access["token"], access["secret"])
+        client = twitter_client(account["token"], account["secret"])
         tweet = client.update(tweet)
+
+        TweetHistory.new(redis).add(tweet, account)
         response.reply(tweet.url)
       end
 
       def untweet(response)
-        # do untweeting here
+        account = account_for(response)
+        return response.relpy(no_accounts) unless account["secret"]
+
+        last_id = LastTweet.new(redis).find(account["username"])
+        client = twitter_client(account["token"], account["secret"])
+
+        client.delete_status(last_id)
+        response.reply("Removed last tweet.")
+      end
+
+      def account_for(response)
+        TwitterAccountList.new(redis).first
       end
 
       def accounts(response)
@@ -115,6 +128,16 @@ module Lita
         end
       end
 
+      LastTweet = Struct.new(:redis) do
+        def add(username, tweet)
+          redis.set("#{username}:last_tweet_id", tweet.id)
+        end
+
+        def find(username)
+          redis.get("#{username}:last_tweet_id")
+        end
+      end
+
       TwitterAccountList = Struct.new(:redis) do
         def names
           redis.smembers("twitter_accounts")
@@ -131,7 +154,10 @@ module Lita
         def add(username, token, secret)
           redis.sadd("twitter_accounts", username)
           redis.hmset("twitter_accounts:#{username}",
-            "token", token, "secret", secret)
+            "username", username,
+            "token", token,
+            "secret", secret
+          )
         end
 
         def remove(username)
