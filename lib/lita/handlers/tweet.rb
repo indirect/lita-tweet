@@ -14,7 +14,8 @@ module Lita
         help: {"untweet" => "Delete the last tweet."}
       route %r{^twitter accounts}, :accounts, command: true, help: {
         "twitter accounts" => "List accounts that can be tweeted from.",
-        "twitter accounts add" => "Authorize a new account for tweeting."
+        "twitter accounts add" => "Authorize a new account for tweeting.",
+        "twitter accounts remove NAME" => "Remove the twitter account NAME"
       }
       # route %r{^twitter channels\s(.+?)\s(.+)}, :channels, command: true, help: {
       #   "twitter channels" => "List account to channel mappings.",
@@ -27,7 +28,7 @@ module Lita
       def tweet(response)
         tweet = response.match_data[1]
         return response.reply("I need something to tweet!") unless tweet
-        
+
         access = TwitterAccountList.new(redis).first
         return response.relpy(no_accounts) unless access["secret"]
 
@@ -41,22 +42,34 @@ module Lita
       end
 
       def accounts(response)
-        return response.reply(add_account) if response.args.last == "add"
+        case response.args[1]
+        when "add"
+          response.reply(add_account)
+        when "remove"
+          response.reply(remove_account(response.args[2]))
+        else
+          response.reply(list_accounts)
+        end
+      end
 
+      def list_accounts
         names = TwitterAccountList.new(redis).names
-        return response.reply(no_accounts) if names.empty?
-        
-        response.reply "Authorized Twitter accounts:\n" +
-         names.map{|n| " - @#{n}" }.join("\n")
+
+        if names.empty?
+          "No authorized accounts. Use `twitter accounts add` to add one."
+        else
+          "Authorized Twitter accounts:\n" + names.map{|n| " - @#{n}\n" }.join
+        end
       end
-      
-      def no_accounts
-        "No authorized accounts. Use `twitter accounts add` to add one."
-      end
-      
+
       def add_account
         "Authorize your account for tweeting here:\n" \
           "#{bot_uri('/twitter/login')}"
+      end
+
+      def remove_account(name)
+        TwitterAccountList.new(redis).remove(name)
+        "Removed @#{name}."
       end
 
       # def channels(response)
@@ -119,6 +132,11 @@ module Lita
           redis.sadd("twitter_accounts", username)
           redis.hmset("twitter_accounts:#{username}",
             "token", token, "secret", secret)
+        end
+
+        def remove(username)
+          redis.del("twitter_accounts:#{username}")
+          redis.srem("twitter_accounts", username)
         end
       end
 
