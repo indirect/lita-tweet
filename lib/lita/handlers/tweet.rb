@@ -1,4 +1,3 @@
-require "twitter"
 require_relative "./tweet/data"
 
 module Lita
@@ -23,37 +22,34 @@ module Lita
       #   "twitter channels NAME CHANNEL" => "Tweet as twitter account NAME when told to tweet in channel CHANNEL."
       # }
 
-      http.get "/twitter/login", :login_with_twitter
-      http.get "/twitter/callback", :add_twitter_account
+      TWITTER_AUTH_URL = "/twitter/auth"
+      TWITTER_AUTH_CALLBACK_URL = "/twitter/callback"
+      http.get TWITTER_AUTH_URL, :twitter_auth
+      http.get TWITTER_AUTH_CALLBACK_URL, :twitter_auth_callback
 
       def tweet(response)
-        tweet = response.match_data[1]
-        return response.reply("I need something to tweet!") unless tweet
+        text = response.match_data[1]
+        if text.nil? || text.empty?
+          return response.reply("I need something to tweet!")
+        end
 
         account = account_for(response)
-        return response.relpy(no_accounts) unless account["secret"]
+        return response.relpy(no_accounts) if account.nil?
 
-        client = twitter_client(account["token"], account["secret"])
-        tweet = client.update(tweet)
-
-        twitter_data.set_last_tweet(account["username"], tweet.id)
+        tweet = account.tweet(text)
+        twitter_data.set_last_tweet(account.username, tweet.id)
         response.reply(tweet.url)
       end
 
       def untweet(response)
         account = account_for(response)
-        return response.relpy(no_accounts) unless account["secret"]
+        return response.relpy(no_accounts) if account.nil?
 
-        last_id = twitter_data.get_last_tweet(account["username"])
-        return response.reply("Couldn't find a last tweet!") if last_id.nil?
-
-        client = twitter_client(account["token"], account["secret"])
-        client.destroy_status(last_id)
-        response.reply("Removed last tweet.")
-      end
-
-      def account_for(response)
-        twitter_data.account(twitter_data.usernames.first)
+        if account.untweet
+          response.reply("Removed last tweet.")
+        else
+          response.reply("Couldn't find a last tweet to remove!")
+        end
       end
 
       def accounts(response)
@@ -67,68 +63,52 @@ module Lita
         end
       end
 
+      # def channels(response)
+      #   # do channel stuff here
+      # end
+
+      def twitter_auth(request, response)
+        callback_url = TWITTER_AUTH_CALLBACK_URL
+        request_token = twitter_data.create_request_token(callback_url)
+        response.status = 302
+        response.headers["Location"] = request_token.authorize_url
+      end
+
+      def twitter_auth_callback(request, response)
+        token = request.params["oauth_token"]
+        verifier = request.params["oauth_verifier"]
+        account = twitter_data.authorize_account(token, verifier)
+        response.body << "Done! You can now tweet from @#{account.username}."
+      end
+
+    private
+
       def list_accounts
         names = twitter_data.usernames
 
         if names.empty?
           "No authorized accounts. Use `twitter accounts add` to add one."
         else
-          "Authorized Twitter accounts:\n" + names.map{|n| " - @#{n}\n" }.join
+          usernames = names.map{|n| " - @#{n}" }.join("\n")
+          "Authorized Twitter accounts:\n" << usernames
         end
       end
 
       def add_account
-        "Authorize your account for tweeting here:\n" \
-          "#{twitter_data.bot_uri('/twitter/login')}"
+        auth_uri = twitter_data.bot_uri(TWITTER_AUTH_URL)
+        "Authorize your account for tweeting here:\n#{auth_uri}"
       end
 
       def remove_account(name)
         twitter_data.remove_account(name)
         "Removed @#{name}."
       end
-
-      # def channels(response)
-      #   # do channel stuff here
-      # end
-
-      def login_with_twitter(request, response)
-        # Get an oauth_token from Twitter
-        request_token = twitter_data.create_request_token
-
-        # Redirect the user to the Twitter login URL
-        response.status = 302
-        response.headers["Location"] = request_token.authorize_url
+      def account_for(response)
+        twitter_data.account(twitter_data.usernames.first)
       end
-
-      def add_twitter_account(request, response)
-        # Load the request_token hash from Redis (by oauth_token)
-        request_token = twitter_data.find_request_token(request.params["oauth_token"])
-
-        # Use the RequestToken to `get_access_token` with the oauth_verifier
-        access_token = request_token.get_access_token(
-          oauth_verifier: request.params["oauth_verifier"])
-
-        # Save the twitter creds with username, token, and secret
-        client = twitter_client(access_token.token, access_token.secret)
-        username = client.user.screen_name
-        twitter_data.add_account(username, access_token)
-
-        response.body << "Done! You can now tweet from @#{username}."
-      end
-
-    private
 
       def twitter_data
         @twitter_data ||= Data.new(redis, config, robot)
-      end
-
-      def twitter_client(token, secret)
-        ::Twitter::REST::Client.new do |c|
-          c.consumer_key        = config.consumer_key
-          c.consumer_secret     = config.consumer_secret
-          c.access_token        = token
-          c.access_token_secret = secret
-        end
       end
 
       Lita.register_handler(self)
