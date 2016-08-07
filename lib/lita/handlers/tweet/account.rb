@@ -1,14 +1,9 @@
 require "twitter"
+require "keyword_struct"
 
 module Lita
   module Handlers
     class Tweet < Handler
-
-      class KeywordStruct < Struct
-        def initialize(**kwargs)
-          super(*members.map{|k| kwargs[k] })
-        end
-      end
 
       Account = KeywordStruct.new(:username, :token, :secret, :config, :last_tweet) do
         def username
