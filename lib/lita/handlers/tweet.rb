@@ -1,5 +1,5 @@
-require "oauth"
 require "twitter"
+require_relative "./tweet/data"
 
 module Lita
   module Handlers
@@ -36,7 +36,7 @@ module Lita
         client = twitter_client(account["token"], account["secret"])
         tweet = client.update(tweet)
 
-        TweetHistory.new(redis).add(tweet, account)
+        twitter_data.set_last_tweet(account["username"], tweet.id)
         response.reply(tweet.url)
       end
 
@@ -44,15 +44,16 @@ module Lita
         account = account_for(response)
         return response.relpy(no_accounts) unless account["secret"]
 
-        last_id = LastTweet.new(redis).find(account["username"])
-        client = twitter_client(account["token"], account["secret"])
+        last_id = twitter_data.get_last_tweet(account["username"])
+        return response.reply("Couldn't find a last tweet!") if last_id.nil?
 
-        client.delete_status(last_id)
+        client = twitter_client(account["token"], account["secret"])
+        client.destroy_status(last_id)
         response.reply("Removed last tweet.")
       end
 
       def account_for(response)
-        TwitterAccountList.new(redis).first
+        twitter_data.account(twitter_data.usernames.first)
       end
 
       def accounts(response)
@@ -67,7 +68,7 @@ module Lita
       end
 
       def list_accounts
-        names = TwitterAccountList.new(redis).names
+        names = twitter_data.usernames
 
         if names.empty?
           "No authorized accounts. Use `twitter accounts add` to add one."
@@ -78,11 +79,11 @@ module Lita
 
       def add_account
         "Authorize your account for tweeting here:\n" \
-          "#{bot_uri('/twitter/login')}"
+          "#{twitter_data.bot_uri('/twitter/login')}"
       end
 
       def remove_account(name)
-        TwitterAccountList.new(redis).remove(name)
+        twitter_data.remove_account(name)
         "Removed @#{name}."
       end
 
@@ -92,8 +93,7 @@ module Lita
 
       def login_with_twitter(request, response)
         # Get an oauth_token from Twitter
-        callback = bot_uri("/twitter/callback")
-        request_token = RequestTokenList.new(redis, config).add(callback)
+        request_token = twitter_data.create_request_token
 
         # Redirect the user to the Twitter login URL
         response.status = 302
@@ -101,11 +101,8 @@ module Lita
       end
 
       def add_twitter_account(request, response)
-        # Parse the oauth_token and oauth_verifier
-        oauth_token = request.params["oauth_token"]
-
         # Load the request_token hash from Redis (by oauth_token)
-        request_token = RequestTokenList.new(redis, config).find(oauth_token)
+        request_token = twitter_data.find_request_token(request.params["oauth_token"])
 
         # Use the RequestToken to `get_access_token` with the oauth_verifier
         access_token = request_token.get_access_token(
@@ -114,10 +111,15 @@ module Lita
         # Save the twitter creds with username, token, and secret
         client = twitter_client(access_token.token, access_token.secret)
         username = client.user.screen_name
-        TwitterAccountList.new(redis).add(username,
-          access_token.token, access_token.secret)
+        twitter_data.add_account(username, access_token)
 
         response.body << "Done! You can now tweet from @#{username}."
+      end
+
+    private
+
+      def twitter_data
+        @twitter_data ||= Data.new(redis, config, robot)
       end
 
       def twitter_client(token, secret)
@@ -127,80 +129,6 @@ module Lita
           c.access_token        = token
           c.access_token_secret = secret
         end
-      end
-
-      LastTweet = Struct.new(:redis) do
-        def add(username, tweet)
-          redis.set("#{username}:last_tweet_id", tweet.id)
-        end
-
-        def find(username)
-          redis.get("#{username}:last_tweet_id")
-        end
-      end
-
-      TwitterAccountList = Struct.new(:redis) do
-        def names
-          redis.smembers("twitter_accounts")
-        end
-
-        def find(username)
-          redis.hgetall("twitter_accounts:#{username}")
-        end
-
-        def first
-          find(names.first)
-        end
-
-        def add(username, token, secret)
-          redis.sadd("twitter_accounts", username)
-          redis.hmset("twitter_accounts:#{username}",
-            "username", username,
-            "token", token,
-            "secret", secret
-          )
-        end
-
-        def remove(username)
-          redis.del("twitter_accounts:#{username}")
-          redis.srem("twitter_accounts", username)
-        end
-      end
-
-      RequestTokenList = Struct.new(:redis, :config) do
-        def add(callback_url)
-          request_token = consumer.get_request_token(
-            oauth_callback: callback_url.to_s)
-          params = request_token.params
-
-          key = "request_token:#{params[:oauth_token]}"
-          redis.hmset(key, *params.to_a.flatten)
-          redis.expire(key, 120)
-        end
-
-        def find(oauth_token)
-          params = redis.hgetall("request_token:#{oauth_token}")
-          params.keys.each{|k| params[k.to_sym] = params[k] }
-          OAuth::RequestToken.from_hash(consumer, params)
-        end
-
-        def consumer
-          @consumer ||= OAuth::Consumer.new(
-            config.consumer_key,
-            config.consumer_secret,
-            :site => 'https://api.twitter.com',
-            :authorize_path => '/oauth/authenticate',
-            :sign_in => true
-          )
-        end
-      end
-
-    private
-
-      def bot_uri(path)
-        bot_url = config.http_url ||
-           "http://#{robot.config.http.host}:#{robot.config.http.port}"
-        URI(File.join(bot_url, path))
       end
 
       Lita.register_handler(self)
