@@ -17,10 +17,13 @@ module Lita
           "twitter accounts add" => "Authorize a new account for tweeting.",
           "twitter accounts remove NAME" => "Remove the twitter account NAME"
         }
-      # route %r{^twitter channels\s(.+?)\s(.+)}, :channels, command: true, help: {
-      #   "twitter channels" => "List account to channel mappings.",
-      #   "twitter channels NAME CHANNEL" => "Tweet as twitter account NAME when told to tweet in channel CHANNEL."
-      # }
+      route %r{^twitter map}, :map, command: true, restrict_to: :tweeters,
+        help: {
+          "twitter map" => "List account to channel mappings.",
+          "twitter map default ACCOUNT" => "Set the default account to tweet from",
+          "twitter map NAME ACCOUNT" => "Tweet as ACCOUNT when told to tweet from NAME.",
+          "twitter map NAME default" => "Tweet as the default twitter account when told to tweet in channel CHANNEL."
+        }
 
       TWITTER_AUTH_URL = "/twitter/auth"
       TWITTER_AUTH_CALLBACK_URL = "/twitter/callback"
@@ -33,7 +36,7 @@ module Lita
           return response.reply("I need something to tweet!")
         end
 
-        account = account_for(response)
+        account = account_for(response.message.source)
         return response.relpy(no_accounts) if account.nil?
 
         tweet = account.tweet(text)
@@ -42,7 +45,7 @@ module Lita
       end
 
       def untweet(response)
-        account = account_for(response)
+        account = account_for(response.message.source)
         return response.relpy(no_accounts) if account.nil?
 
         if account.untweet
@@ -63,9 +66,14 @@ module Lita
         end
       end
 
-      # def channels(response)
-      #   # do channel stuff here
-      # end
+      def map(response)
+        name, account = response.args[1..2]
+        return response.reply(list_map) unless name
+        return response.reply(invalid_name) unless valid_name?(name)
+        return response.reply(set_default_map(account)) if name == "default"
+        return response.reply(clear_map(name)) if account == "default"
+        response.reply(set_map(name, account))
+      end
 
       def twitter_auth(request, response)
         callback_url = TWITTER_AUTH_CALLBACK_URL
@@ -103,8 +111,69 @@ module Lita
         twitter_data.remove_account(name)
         "Removed @#{name}."
       end
-      def account_for(response)
-        twitter_data.account(twitter_data.usernames.first)
+
+      def valid_name?(name)
+        %w[@ #].include?(name[0])
+      end
+
+      def invalid_name
+        "Names for mapping need to be @username (for DMs) or #channel!"
+      end
+
+      def list_map
+        channels = twitter_data.channel_map
+        default_username = twitter_data.default_account.username
+
+        if channels.empty?
+          "All channels will tweet as @#{default_username}"
+        else
+          "Channel twitter accounts:\n" +
+            channels.map{|c,u| " - ##{c} will tweet as @#{u}" }.join("\n") +
+            "\n - all other channels will tweet as @#{default_username}"
+        end
+      end
+
+      def set_default_map(username)
+        if twitter_data.set_default(username)
+          "Done. The default account is now @#{username}."
+        else
+          "I can't tweet as @#{username}, so it can't be the default."
+        end
+      end
+
+      def set_map(channel, username)
+        if twitter_data.set_channel_map(channel, username)
+          "From now on, tweets from #{channel} will use the twitter account @#{username}."
+        else
+          "I can't tweet as @#{username}, so it can't be mapped."
+        end
+      end
+
+      def clear_map(channel)
+        twitter_data.clear_channel_map(channel)
+        username = twitter_data.default_account.username
+        "Tweets from #{channel} will come from the default account, @#{username}."
+      end
+
+      def account_for(source)
+        channel_name = sender_for(source)
+
+        twitter_data.get_channel_account(channel_name) ||
+          twitter_data.default_account ||
+          Account.new(username: "No account")
+      end
+
+      def sender_for(source)
+        if source.private_message
+          handle = source.user.metadata["mention_name"] || source.user.name
+          handle ? "@#{handle}" : nil
+        else
+          # lita-slack has a bug where source.room_object.name is wrong,
+          # and to get the correct name you have to find the room again
+          # https://github.com/litaio/lita-slack/issues/44
+          name = Lita::Room.find_by_id(source.room).name
+          name ? "##{name}" : nil
+        end
       end
 
       def twitter_data

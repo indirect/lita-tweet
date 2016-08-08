@@ -7,7 +7,7 @@ module Lita
 
       Account = KeywordStruct.new(:username, :token, :secret, :config, :last_tweet) do
         def username
-          @username ||= client.user.screen_name
+          @username ||= client && client.user.screen_name
         end
 
         def tweet(text)
@@ -21,6 +21,8 @@ module Lita
       private
 
         def client
+          return nil unless config && token && secret
+
           @client ||= ::Twitter::REST::Client.new do |c|
             c.consumer_key        = config.consumer_key
             c.consumer_secret     = config.consumer_secret
