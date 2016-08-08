@@ -71,8 +71,8 @@ module Lita
         account.gsub!(/^@/, '') if account
 
         return response.reply(list_map) unless name
-        return response.reply(invalid_name) unless valid_name?(name)
         return response.reply(set_default_map(account)) if name == "default"
+        return response.reply(invalid_name) unless valid_name?(name)
         return response.reply(clear_map(name)) if account == "default"
         response.reply(set_map(name, account))
       end
