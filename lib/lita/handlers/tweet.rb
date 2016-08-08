@@ -68,7 +68,7 @@ module Lita
 
       def map(response)
         name, account = response.args[1..2]
-        account.gsub!(/^@/, '')
+        account.gsub!(/^@/, '') if account
 
         return response.reply(list_map) unless name
         return response.reply(invalid_name) unless valid_name?(name)
