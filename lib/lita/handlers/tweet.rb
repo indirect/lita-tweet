@@ -15,15 +15,16 @@ module Lita
         restrict_to: :tweeters, help: {
           "twitter accounts" => "List accounts that can be tweeted from.",
           "twitter accounts add" => "Authorize a new account for tweeting.",
-          "twitter accounts remove NAME" => "Remove the twitter account NAME"
+          "twitter accounts remove NAME" => "Remove the twitter account NAME."
         }
-      route %r{^twitter map}, :map, command: true, restrict_to: :tweeters,
-        help: {
-          "twitter map" => "List account to channel mappings.",
-          "twitter map default ACCOUNT" => "Set the default account to tweet from",
-          "twitter map NAME ACCOUNT" => "Tweet as ACCOUNT when told to tweet from NAME.",
-          "twitter map NAME default" => "Tweet as the default twitter account when told to tweet in channel CHANNEL."
-        }
+      route %r{^twitter default}, :default, command: true, restrict_to: :tweeters,
+        help: { "twitter default ACCOUNT" => "Set the default account to tweet from." }
+      route %r{^twitter map}, :map, command: true, restrict_to: :tweeters, help: {
+        "twitter map" => "List account to channel mappings.",
+        "twitter map NAME ACCOUNT" => "Tweet as ACCOUNT when told to tweet from NAME.",
+      }
+      route %r{^twitter unmap}, :unmap, command: true, restrict_to: :tweeters,
+        help: { "twitter unmap NAME" => "Tweet as the default twitter account when told to tweet in channel CHANNEL." }
 
       TWITTER_AUTH_URL = "/twitter/auth"
       TWITTER_AUTH_CALLBACK_URL = "/twitter/callback"
@@ -70,11 +71,22 @@ module Lita
         name, account = response.args[1..2]
         account.gsub!(/^@/, '') if account
 
-        return response.reply(list_map) unless name
-        return response.reply(set_default_map(account)) if name == "default"
-        return response.reply(invalid_name) unless valid_name?(name)
-        return response.reply(clear_map(name)) if account == "default"
-        response.reply(set_map(name, account))
+        if name
+          response.reply(set_map(name, account))
+        else
+          response.reply(list_map)
+        end
+      end
+
+      def default(response)
+        account = response.args[1]
+        account.gsub!(/^@/, '') if account
+        response.reply(set_default_map(account))
+      end
+
+      def unmap(response)
+        name = response.args[1]
+        response.reply(clear_map(name))
       end
 
       def twitter_auth(request, response)
@@ -136,7 +148,9 @@ module Lita
       end
 
       def set_default_map(username)
-        if twitter_data.set_default(username)
+        if username.nil?
+          "You need to provide an account to set as the default!"
+        elsif twitter_data.set_default(username)
           "Done. The default account is now @#{username}."
         else
           "I can't tweet as @#{username}, so it can't be the default."
@@ -144,7 +158,11 @@ module Lita
       end
 
       def set_map(channel, username)
-        if twitter_data.set_channel_map(channel, username)
+        if !valid_name?(channel)
+          invalid_name
+        elsif username.nil?
+          "Provide an account name to set as the default!"
+        elsif twitter_data.set_channel_map(channel, username)
           "From now on, tweets from #{channel} will use the twitter account @#{username}."
         else
           "I can't tweet as @#{username}, so it can't be mapped."
@@ -152,7 +170,10 @@ module Lita
       end
 
       def clear_map(channel)
+        return invalid_name unless valid_name?(channel)
+
         twitter_data.clear_channel_map(channel)
+
         if default_account
           "Tweets from #{channel} will come from the default account, @#{default_account.username}."
         else
