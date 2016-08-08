@@ -7,7 +7,8 @@ module Lita
 
       Account = KeywordStruct.new(:username, :token, :secret, :config, :last_tweet) do
         def username
-          @username ||= client && client.user.screen_name
+          values[members.index(:username)] ||= client.user.screen_name if client
+          values[members.index(:username)]
         end
 
         def tweet(text)
