@@ -68,6 +68,8 @@ module Lita
 
       def map(response)
         name, account = response.args[1..2]
+        account.gsub!(/^@/, '')
+
         return response.reply(list_map) unless name
         return response.reply(invalid_name) unless valid_name?(name)
         return response.reply(set_default_map(account)) if name == "default"
@@ -121,15 +123,15 @@ module Lita
       end
 
       def list_map
-        channels = twitter_data.channel_map
-        default_username = twitter_data.default_account.username
+        return "No accounts are configured." unless default_account
 
+        channels = twitter_data.channel_map
         if channels.empty?
-          "All channels will tweet as @#{default_username}"
+          "All channels will tweet as @#{default_account.username}"
         else
           "Channel twitter accounts:\n" +
-            channels.map{|c,u| " - ##{c} will tweet as @#{u}" }.join("\n") +
-            "\n - all other channels will tweet as @#{default_username}"
+            channels.map{|c,u| " - #{c} will tweet as @#{u}" }.join("\n") +
+            "\n - all other channels will tweet as @#{default_account.username}"
         end
       end
 
@@ -151,16 +153,20 @@ module Lita
 
       def clear_map(channel)
         twitter_data.clear_channel_map(channel)
-        username = twitter_data.default_account.username
-        "Tweets from #{channel} will come from the default account, @#{username}."
+        if default_account
+          "Tweets from #{channel} will come from the default account, @#{default_account.username}."
+        else
+          "No accounts are configured for tweeting."
+        end
       end
 
       def account_for(source)
         channel_name = sender_for(source)
+        twitter_data.get_channel_account(channel_name) || default_account
+      end
 
-        twitter_data.get_channel_account(channel_name) ||
-          twitter_data.default_account ||
-          Account.new(username: "No account")
+      def default_account
+        twitter_data.default_account
       end
 
       def sender_for(source)
