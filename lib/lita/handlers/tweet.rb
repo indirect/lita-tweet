@@ -38,7 +38,7 @@ module Lita
         end
 
         account = account_for(response.message.source)
-        return response.relpy(no_accounts_message) if account.nil?
+        return response.reply(no_accounts_message) if account.nil?
 
         tweet = account.tweet(text)
         twitter_data.set_last_tweet(account.username, tweet.id)
@@ -47,7 +47,7 @@ module Lita
 
       def untweet(response)
         account = account_for(response.message.source)
-        return response.relpy(no_accounts_message) if account.nil?
+        return response.reply(no_accounts_message) if account.nil?
 
         if account.untweet
           response.reply("Removed last tweet.")
@@ -189,7 +189,7 @@ module Lita
       def default_account
         twitter_data.default_account
       end
-      
+
       def no_accounts_message
         "No accounts are configured for tweeting."
       end
