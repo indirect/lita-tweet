@@ -24,10 +24,11 @@ module Lita
         end
 
         def add_account(token, secret, username = nil)
-          account = Account.new(token: token, secret: secret, config: config, username: username)
+          account = Account.new(token: token, secret: secret,
+                                config: config, username: username)
           username ||= account.lookup_username!
-          redis.setnx("default_username", username)
 
+          redis.setnx("default_username", username)
           redis.sadd("twitter_accounts", username)
           redis.hmset("twitter_accounts:#{username}",
             "username", username,

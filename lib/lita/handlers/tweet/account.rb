@@ -15,7 +15,9 @@ module Lita
         end
 
         def lookup_username!
-          values[:username] = client.user.screen_name
+          client.user.screen_name.tap do |username|
+            self.username = username
+          end
         end
 
       private
