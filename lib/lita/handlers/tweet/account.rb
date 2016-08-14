@@ -6,17 +6,16 @@ module Lita
     class Tweet < Handler
 
       Account = KeywordStruct.new(:username, :token, :secret, :config, :last_tweet) do
-        def username
-          values[members.index(:username)] ||= client.user.screen_name if client
-          values[members.index(:username)]
-        end
-
         def tweet(text)
           client.update(text)
         end
 
         def untweet
           last_tweet ? client.destroy_status(last_tweet) : false
+        end
+
+        def lookup_username!
+          values[:username] = client.user.screen_name
         end
 
       private

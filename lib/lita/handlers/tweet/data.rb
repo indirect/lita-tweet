@@ -23,9 +23,9 @@ module Lita
           Account.new(**data.merge(config: config))
         end
 
-        def add_account(token, secret)
-          account = Account.new(token: token, secret: secret, config: config)
-          username = account.username
+        def add_account(token, secret, username = nil)
+          account = Account.new(token: token, secret: secret, config: config, username: username)
+          username ||= account.lookup_username!
           redis.setnx("default_username", username)
 
           redis.sadd("twitter_accounts", username)
