@@ -13,4 +13,4 @@ group :development do
 end
 
 # This fixes `already initialized constant` warnings while running commands
-require "rb-readline" rescue nil
+begin; require "rb-readline"; rescue LoadError; end
