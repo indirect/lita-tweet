@@ -42,7 +42,7 @@ module Lita
 
         tweet = account.tweet(text)
         twitter_data.set_last_tweet(account.username, tweet.id)
-        response.reply(tweet.url)
+        response.reply(tweet.url.to_s)
       end
 
       def untweet(response)
@@ -101,6 +101,10 @@ module Lita
         verifier = request.params["oauth_verifier"]
         account = twitter_data.authorize_account(token, verifier)
         response.body << "Done! You can now tweet from @#{account.username}."
+      end
+
+      def twitter_data
+        @twitter_data ||= Data.new(redis, config, robot)
       end
 
     private
@@ -205,10 +209,6 @@ module Lita
           name = Lita::Room.find_by_id(source.room).name
           name ? "##{name}" : nil
         end
-      end
-
-      def twitter_data
-        @twitter_data ||= Data.new(redis, config, robot)
       end
 
       Lita.register_handler(self)
