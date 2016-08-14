@@ -1,7 +1,6 @@
 # lita-tweet
 
 [![Build Status](https://travis-ci.org/indirect/lita-tweet.png?branch=master)](https://travis-ci.org/indirect/lita-tweet)
-[![Coverage Status](https://coveralls.io/repos/indirect/lita-tweet/badge.png)](https://coveralls.io/r/indirect/lita-tweet)
 
 Allows the Lita chat bot to tweet on command.
 
