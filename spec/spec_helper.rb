@@ -1,9 +1,11 @@
 require "coveralls"
+require "simplecov"
+SimpleCov.add_filter("/.bundle/")
+Coveralls.wear!
+
 require "lita-tweet"
 require "lita/rspec"
 require "webmock/rspec"
-
-Coveralls.wear!
 
 # A compatibility mode is provided for older plugins upgrading from Lita 3. Since this plugin
 # was generated with Lita 4, the compatibility mode should be left disabled.
