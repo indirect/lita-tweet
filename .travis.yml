@@ -1,6 +1,7 @@
 language: ruby
 rvm:
   - 2.3.1
-script: bin/rake
+script:
+  - bin/rake
 services:
   - redis-server
