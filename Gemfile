@@ -3,6 +3,7 @@ source "https://rubygems.org"
 gemspec
 
 group :development do
+  gem "coveralls"
   gem "guard-rspec"
   gem "pry-byebug"
   gem "rack-test"
