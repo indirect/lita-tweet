@@ -42,7 +42,9 @@ module Lita
 
         tweet = account.tweet(text)
         twitter_data.set_last_tweet(account.username, tweet.id)
-        response.reply(tweet.url.to_s)
+        # We assume that you have e.g. a Slack integration that shows all tweets
+        # so instead of response.reply(tweet.url.to_s), we merely say:
+        response.reply("Tweet posted!")
       end
 
       def untweet(response)
