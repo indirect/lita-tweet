@@ -56,7 +56,7 @@ describe Lita::Handlers::Tweet, lita_handler: true do
             }
           }])
         send_command("tweet some text")
-        expect(replies).to include("https://twitter.com/handle/status/12345")
+        expect(replies).to include("Tweet posted!")
       end
     end
   end
