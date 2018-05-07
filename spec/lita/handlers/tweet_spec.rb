@@ -30,6 +30,20 @@ describe Lita::Handlers::Tweet, lita_handler: true do
     Lita::Authorization.new(registry.config).add_user_to_group!(source.user, :tweeters)
   end
 
+  def expect_tweet(body)
+    stub_request(:post, "https://api.twitter.com/1.1/statuses/update.json").
+      with(body: {status: body}).to_return(status: 200, body: %q[{
+        "created_at": "Sun Aug 14 01:53:54 +0000 2016",
+        "id": 12345,
+        "text": "some text",
+        "user": {
+          "id": 123,
+          "screen_name": "handle",
+          "created_at": "Wed Nov 04 17:18:22 +0000 2009"
+        }
+      }])
+  end
+
   describe "#tweet" do
     context "without an authorized account" do
       it "should complain" do
@@ -44,18 +58,14 @@ describe Lita::Handlers::Tweet, lita_handler: true do
       end
 
       it "should send a tweet" do
-        stub_request(:post, "https://api.twitter.com/1.1/statuses/update.json").
-          with(body: {status: "some text"}).to_return(status: 200, body: %q[{
-            "created_at": "Sun Aug 14 01:53:54 +0000 2016",
-            "id": 12345,
-            "text": "some text",
-            "user": {
-              "id": 123,
-              "screen_name": "handle",
-              "created_at": "Wed Nov 04 17:18:22 +0000 2009"
-            }
-          }])
+        expect_tweet("some text")
         send_command("tweet some text")
+        expect(replies).to include("Tweet posted!")
+      end
+
+      it "should capture newlines" do
+        expect_tweet("para one\n\npara two")
+        send_command("tweet para one\n\npara two")
         expect(replies).to include("Tweet posted!")
       end
     end

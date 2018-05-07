@@ -7,11 +7,11 @@ module Lita
       config :consumer_secret, type: String
       config :http_url
 
-      route %r{^tweet\s(.+)}, :tweet, command: true, restrict_to: :tweeters,
+      route %r{\Atweet\s(.+)}m, :tweet, command: true, restrict_to: :tweeters,
         help: {"tweet MESSAGE" => "Post a tweet."}
-      route %r{^untweet}, :untweet, command: true, restrict_to: :tweeters,
+      route %r{\Auntweet}, :untweet, command: true, restrict_to: :tweeters,
         help: {"untweet" => "Delete the last tweet."}
-      route %r{^twitter accounts}, :accounts, command: true,
+      route %r{\Atwitter accounts}, :accounts, command: true,
         restrict_to: :tweeters, help: {
           "twitter accounts" => "List accounts that can be tweeted from.",
           "twitter accounts add" => "Authorize a new account for tweeting.",
